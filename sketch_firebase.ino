@@ -58,7 +58,7 @@ void loop() {
   idZone = getId(pin0, pin1);
   long lastUpdate = 0;
   // Reade from Firebase
-  if(millis() - lastUpdate >= 1000) {
+  if(millis() - lastUpdate >= 60000) {
     int autoMode = firebaseGet("/" + String(idZone) + "/autoValue");
     Serial.println("success : " + String(Firebase.success())); 
     Serial.println("autoMode : " + String(autoMode));
