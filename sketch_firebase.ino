@@ -20,6 +20,8 @@
 
 
 int idZone;
+int connectedWifi;
+int connectedFirebase;
 
 void setup() {
   Serial.begin(9600);
@@ -41,20 +43,40 @@ void setup() {
   
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);  
   //connect to wifi
-  while (WiFi.status() != WL_CONNECTED) {           //wait till connected to WiFi
+  long timeout = millis();
+  
+  
+  while (WiFi.status() != WL_CONNECTED && ((millis() - timeout) <= 20000)) {           //wait till connected to WiFi or timeout
     delay(100);  
     digitalWrite(WIFI_LED_CONNECT,LOW);             //Blink the light till connected to WiFi
     delay(100);
     digitalWrite(WIFI_LED_CONNECT,HIGH);
-    Serial.print("."); 
-  }    
-  Serial.println("");
-  Serial.println("WiFi connected");
-  digitalWrite(WIFI_LED_CONNECT,LOW);  
-  Serial.println("IP address: ");
-  Serial.println(WiFi.localIP());
-
-  Firebase.begin(FIREBASE_HOST, FIREBASE_AUTH);          //connect to Database
+    Serial.print(".");
+    Serial.println(millis() - timeout);
+  }
+  if(millis() - timeout >= 20000) {
+    connectedWifi = 0;
+    connectedFirebase = 0;
+    Serial.println("");
+    Serial.println("WiFi connection timed out.");
+  } else {
+    connectedWifi = 1;
+    Serial.println("");
+    Serial.println("WiFi connected");
+    digitalWrite(WIFI_LED_CONNECT,LOW);  
+    Serial.println("IP address: ");
+    Serial.println(WiFi.localIP());
+  
+    Firebase.begin(FIREBASE_HOST, FIREBASE_AUTH);          //connect to Database
+    if(Firebase.success()) {
+      connectedFirebase = 1;
+    } else {
+      connectedFirebase = 0;
+    }    
+  }
+  
+  Serial.println("connectedWifi : " + String(connectedWifi));
+  Serial.println("connectedFirebase : " + String(connectedFirebase));
   
   delay(1000);
 }
@@ -69,7 +91,12 @@ void loop() {
   // Reade from Firebase
 
   if(millis() - lastUpdate >= 30000) {
-    int autoMode = firebaseGet("/" + String(idZone) + "/autoValue");
+    lastUpdate = millis();
+    int autoMode = 1;
+    if(connectedWifi && connectedFirebase) {
+      autoMode = firebaseGet("/" + String(idZone) + "/autoValue");
+    }
+    Serial.println("modeAuto : " + String(autoMode));
     if(autoMode == 1) {
           
       //Reset Leds
@@ -96,7 +123,6 @@ void loop() {
       
       // Write to Firebase
       firebaseSet("/" + String(idZone) + "/inValue", analogRead(SENSOR_MOISTURE));
-      lastUpdate = millis();
       delay(100);
       
     } else {
@@ -122,27 +148,24 @@ void loop() {
       
       // Write to Firebase
       firebaseSet("/" + String(idZone) + "/inValue", analogRead(SENSOR_MOISTURE));
-      lastUpdate = millis();
       delay(100);
     }
-    
-    int firebaseResult = firebaseGet("/" + String(idZone) + "/outValue");
-    //Serial.println(firebaseResult);
-    delay(100);
-    
-    if (Firebase.success() && firebaseResult == 0) {
-      digitalWrite(LED_OUT,LOW);  
-    } else if(Firebase.success() && firebaseResult == 1) {
-      digitalWrite(LED_OUT,HIGH);  
-    } 
+    if(connectedWifi && connectedFirebase) {
+      int firebaseResult = firebaseGet("/" + String(idZone) + "/outValue");
+      //Serial.println(firebaseResult);
+      delay(100);
+      
+      if (Firebase.success() && firebaseResult == 0) {
+        digitalWrite(LED_OUT,LOW);  
+      } else if(Firebase.success() && firebaseResult == 1) {
+        digitalWrite(LED_OUT,HIGH);  
+      } 
+    }    
   }  
 } 
 
 int firebaseGet(String s){
   int x = Firebase.getInt(s);
-  if(!Firebase.success()) {
-    x = 1;
-  }
   yield();
   delay(100);
   return x;
@@ -157,6 +180,6 @@ void firebaseSet(String s, int value) {
 
 int getId(int pin0, int pin1) {
   int id = pin0 * 1 + pin1 *2;
-  Serial.println("idZone : " + String(id));
+  //Serial.println("idZone : " + String(id));
   return id;
 }
